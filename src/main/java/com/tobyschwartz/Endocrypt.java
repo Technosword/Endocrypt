@@ -1,11 +1,20 @@
 package com.tobyschwartz;
 
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.swing.*;
 import javax.swing.filechooser.FileSystemView;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.File;
+import java.io.IOException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 
 public class Endocrypt {
     public final static String version = "1.0.0 BETA";
@@ -21,7 +30,9 @@ class GUI implements ActionListener {
     JButton openFileButton, closeFileButton;
     JFileChooser fileChooser;
     JPasswordField passwordField;
-    JToggleButton encryptionToggleButton;
+    JToggleButton encryptionToggleButton, showPasswordButton;
+    JScrollPane fileScrollPane;
+    File fileToEncrypt;
     public GUI() {
         initGUI();
     }
@@ -35,7 +46,8 @@ class GUI implements ActionListener {
         jFrame.setVisible(true);
 
         JPanel panel = new JPanel();
-        panel.setBorder(BorderFactory.createEmptyBorder(100, 200, 80, 200));
+        panel.setBorder(BorderFactory.createEmptyBorder(100, 100, 80, 100));
+        panel.setBounds(new Rectangle(300, 250));
         panel.setLayout(new BorderLayout());
 
 
@@ -43,7 +55,10 @@ class GUI implements ActionListener {
         labelPanel.setLayout(new FlowLayout(FlowLayout.CENTER));
         selectedFileLabel = new JLabel("No file selected");
         selectedFileLabel.setHorizontalAlignment(JLabel.CENTER);
-        labelPanel.add(selectedFileLabel);
+        fileScrollPane = new JScrollPane(selectedFileLabel);
+        fileScrollPane.createHorizontalScrollBar();
+        fileScrollPane.setPreferredSize(new Dimension(200, 40));
+        labelPanel.add(fileScrollPane);
 
 
         encryptionToggleButton = new JToggleButton("Encrypt");
@@ -66,8 +81,21 @@ class GUI implements ActionListener {
         passwordField = new JPasswordField(16);
         passwordField.setToolTipText("Encryption/Decryption Password");
         passwordField.setEnabled(true);
-        //passwordField.setEchoChar((char) 0); // show password characters
         passwordPanel.add(passwordField);
+
+        showPasswordButton = new JToggleButton("Show");
+        showPasswordButton.addActionListener(e -> {
+            if (showPasswordButton.isSelected()) {
+                passwordField.setEchoChar((char) 0); //show password
+                showPasswordButton.setText("Hide");
+            } else {
+                passwordField.setEchoChar('●');
+                showPasswordButton.setText("Show");
+            }
+        });
+        showPasswordButton.setPreferredSize(showPasswordButton.getPreferredSize());
+        passwordPanel.add(showPasswordButton);
+
         panel.add(passwordPanel, BorderLayout.CENTER);
 
 
@@ -82,7 +110,7 @@ class GUI implements ActionListener {
         closeFileButton = new JButton("Save File");
         closeFileButton.setBounds(jFrame.getWidth() / 2, jFrame.getHeight() / 2, 100, 150);
         closeFileButton.addActionListener(this);
-        //closeFileButton.setVisible(false);
+        closeFileButton.setVisible(false);
         buttonPanel.add(closeFileButton);
 
         panel.add(buttonPanel, BorderLayout.SOUTH);
@@ -96,18 +124,73 @@ class GUI implements ActionListener {
         String command = e.getActionCommand();
         switch (command) {
             case "Open File" -> {
-                System.out.println("Opened!");
                 fileChooser = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
                 int result = fileChooser.showOpenDialog(null);
                 if (result == JFileChooser.APPROVE_OPTION) {
-                    selectedFileLabel.setText(fileChooser.getSelectedFile().getPath());
+                    fileToEncrypt = fileChooser.getSelectedFile();
+                    selectedFileLabel.setText(fileToEncrypt.getPath());
+                    closeFileButton.setVisible(true);
                 } else {
                     selectedFileLabel.setText("No file selected");
                 }
             }
-            case "Save File" -> System.out.println("Closed!");
+            case "Save File" -> {
+                fileChooser = new JFileChooser(fileToEncrypt.getParentFile());
+                int result = fileChooser.showSaveDialog(null);
+                if (result == JFileChooser.APPROVE_OPTION) {
+                    if (encryptionToggleButton.isEnabled()) { //encryption toggle is on so we are encrypting data
+                        try {
+                            Encrypt.encryptFile(passwordField.getPassword(), fileToEncrypt, fileChooser.getSelectedFile());
+                            new Notification("File saved successfully!");
+                        } catch (NoSuchAlgorithmException | InvalidKeySpecException | NoSuchPaddingException |
+                                 InvalidKeyException | IOException | IllegalBlockSizeException | BadPaddingException |
+                                 InvalidAlgorithmParameterException ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    } else {
+                        throw new UnsupportedOperationException("Not yet implemented");
+                    }
+                }
+            }
             default -> throw new IllegalStateException("Unexpected value: " + command);
         }
 
+    }
+}
+
+class Notification extends JFrame {
+
+    public Notification() {
+        super("Notification");
+        setSize(300, 100);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        JLabel label = new JLabel("This is a notification.");
+        add(label);
+
+        JButton button = new JButton("Close");
+        button.addActionListener(e -> dispose());
+        add(button);
+
+        setLayout(new FlowLayout());
+
+        setVisible(true);
+    }
+    public Notification(String text) {
+        super("Notification");
+        setSize(300, 100);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        JLabel label = new JLabel(text);
+        add(label);
+
+        JButton button = new JButton("Close");
+        button.addActionListener(e -> dispose());
+        add(button);
+
+        setLayout(new FlowLayout());
+        setLocationRelativeTo(null);
+
+        setVisible(true);
     }
 }
