@@ -7,6 +7,8 @@ import javax.crypto.NoSuchPaddingException;
 import javax.swing.*;
 import javax.swing.filechooser.FileSystemView;
 import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
@@ -15,6 +17,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
+import java.util.List;
 
 public class Endocrypt {
     public final static String version = "1.0.0 BETA";
@@ -32,7 +35,7 @@ class GUI implements ActionListener {
     JPasswordField passwordField;
     JToggleButton encryptionToggleButton, showPasswordButton;
     JScrollPane fileScrollPane;
-    File fileToEncrypt;
+    public File fileToEncrypt;
     public GUI() {
         initGUI();
     }
@@ -58,6 +61,8 @@ class GUI implements ActionListener {
         fileScrollPane = new JScrollPane(selectedFileLabel);
         fileScrollPane.createHorizontalScrollBar();
         fileScrollPane.setPreferredSize(new Dimension(200, 40));
+        fileScrollPane.setTransferHandler(new FileTransferHandler());
+
         labelPanel.add(fileScrollPane);
 
 
@@ -138,7 +143,7 @@ class GUI implements ActionListener {
                 fileChooser = new JFileChooser(fileToEncrypt.getParentFile());
                 int result = fileChooser.showSaveDialog(null);
                 if (result == JFileChooser.APPROVE_OPTION) {
-                    if (encryptionToggleButton.isEnabled()) { //encryption toggle is on so we are encrypting data
+                    if (!encryptionToggleButton.isSelected()) { //encryption toggle is on so we are encrypting data
                         try {
                             Encrypt.encryptFile(passwordField.getPassword(), fileToEncrypt, fileChooser.getSelectedFile());
                             new Notification("File saved successfully!");
@@ -148,13 +153,50 @@ class GUI implements ActionListener {
                             throw new RuntimeException(ex);
                         }
                     } else {
-                        throw new UnsupportedOperationException("Not yet implemented");
+                        try {
+                            Encrypt.decryptFile(passwordField.getPassword(), fileToEncrypt, fileChooser.getSelectedFile());
+                            new Notification("File saved successfully!");
+                        } catch (NoSuchAlgorithmException | InvalidKeySpecException | NoSuchPaddingException |
+                                 InvalidKeyException | IOException | IllegalBlockSizeException | BadPaddingException |
+                                 InvalidAlgorithmParameterException ex) {
+                            throw new RuntimeException(ex);
+                        }
                     }
                 }
             }
             default -> throw new IllegalStateException("Unexpected value: " + command);
         }
 
+    }
+    private class FileTransferHandler extends TransferHandler {
+        @Override
+        public boolean canImport(TransferSupport support) {
+            return support.isDataFlavorSupported(DataFlavor.javaFileListFlavor);
+        }
+
+        @Override
+        public boolean importData(TransferSupport support) {
+            if (!canImport(support)) {
+                return false;
+            }
+
+            Transferable transferable = support.getTransferable();
+
+            try {
+                List<File> files = (List<File>) transferable.getTransferData(DataFlavor.javaFileListFlavor);
+                if (!files.isEmpty()) {
+                    File file = files.get(0); // Take the first file
+                    fileToEncrypt = file;
+                    selectedFileLabel.setText(fileToEncrypt.getPath());
+                    closeFileButton.setVisible(true);
+                    return true;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            return false;
+        }
     }
 }
 
@@ -194,3 +236,5 @@ class Notification extends JFrame {
         setVisible(true);
     }
 }
+
+

@@ -14,10 +14,9 @@ import java.security.spec.InvalidKeySpecException;
 
 public class Encrypt {
 
-    private static SecretKeySpec generateStrongPasswordSpec(char[] password)
+    private static SecretKeySpec generateStrongPasswordSpec(char[] password, byte[] salt)
             throws NoSuchAlgorithmException, InvalidKeySpecException {
         int iterations = 1000;
-        byte[] salt = getSalt();
         PBEKeySpec keySpec = new PBEKeySpec(password, salt, iterations, 192); //recommended key length
         SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
 
@@ -64,8 +63,10 @@ public class Encrypt {
             IOException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
         long start = System.currentTimeMillis();
         System.out.println("Starting encryption process...");
+
         IvParameterSpec iv = new IvParameterSpec(getSalt());
-        Cipher cipher = createCipher(Cipher.ENCRYPT_MODE, generateStrongPasswordSpec(password), iv);
+
+        Cipher cipher = createCipher(Cipher.ENCRYPT_MODE, generateStrongPasswordSpec(password, iv.getIV()), iv);
 
         FileInputStream inputStream = new FileInputStream(inputFile);
         FileOutputStream outputStream = new FileOutputStream(outputFile);
@@ -88,5 +89,46 @@ public class Encrypt {
         outputStream.close();
         long end = System.currentTimeMillis();
         System.out.printf("Encryption finished! Process took %s seconds!%n", (end - start) / 1000);
+    }
+
+    public static void decryptFile(char[] password, File inputFile, File outputFile)
+            throws IOException, NoSuchAlgorithmException, InvalidKeySpecException,
+            InvalidAlgorithmParameterException, NoSuchPaddingException, InvalidKeyException,
+            IllegalBlockSizeException, BadPaddingException {
+        long start = System.currentTimeMillis();
+        System.out.println("Starting decryption process...");
+
+        FileInputStream inputStream = new FileInputStream(inputFile);
+        FileOutputStream outputStream = new FileOutputStream(outputFile);
+        byte[] buffer = new byte[8192];
+        int bytesRead;
+
+        // Read the salt from the input file
+        byte[] salt = new byte[16];
+        bytesRead = inputStream.read(salt);
+        if (bytesRead != salt.length) {
+            throw new IOException("Invalid salt size");
+        }
+
+        IvParameterSpec iv = new IvParameterSpec(salt);
+        Cipher cipher = createCipher(Cipher.DECRYPT_MODE, generateStrongPasswordSpec(password, salt), iv);
+
+        while ((bytesRead = inputStream.read(buffer)) != -1) {
+            byte[] output = cipher.update(buffer, 0, bytesRead);
+            if (output != null) {
+                outputStream.write(output);
+            }
+        }
+
+        byte[] outputBytes = cipher.doFinal();
+        if (outputBytes != null) {
+            outputStream.write(outputBytes);
+        }
+
+        inputStream.close();
+        outputStream.close();
+
+        long end = System.currentTimeMillis();
+        System.out.printf("Decryption finished! Process took %s seconds!%n", (end - start) / 1000);
     }
 }
